@@ -154,7 +154,7 @@
     .notice-list { margin: 0; padding-left: 0; list-style: none; font-size: 0.88rem; line-height: 1.5; color: #f0f0f0; }
     .notice-list li { margin-bottom: 6px; text-indent: -1em; padding-left: 1em; }
 
-    /* 全画面オーバーレイ案内 */
+    /* 全画面オーバーレイ案内（カメラ許可） */
     #startOverlay {
       position: fixed;
       top: 0;
@@ -182,6 +182,27 @@
       cursor: pointer;
       margin-top: 15px;
     }
+
+    /* 「移動」のでか文字アラート用オーバーレイ */
+    #moveAlertOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(211, 47, 47, 0.85); /* 目立つ赤色背景 */
+      z-index: 8888;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      animation: flashBg 0.5s infinite alternate;
+    }
+    @keyframes flashBg {
+      from { background: rgba(211, 47, 47, 0.85); }
+      to { background: rgba(255, 152, 0, 0.85); }
+    }
   </style>
 </head>
 <body>
@@ -197,6 +218,16 @@
     <button onclick="enableCameraFromOverlay()">
       タップしてカメラ・ライトを許可
     </button>
+  </div>
+
+  <!-- 「移動」のでか文字オーバーレイ -->
+  <div id="moveAlertOverlay">
+    <div style="font-size: 4rem; font-weight: bold; color: #ffffff; text-shadow: 0 0 20px rgba(0,0,0,0.8); margin-bottom: 10px;">
+      ⚠️ 移 動 ⚠️
+    </div>
+    <div style="font-size: 1.5rem; font-weight: bold; color: #ffeb3b; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 8px;">
+      指定の位置へ移動してください！
+    </div>
   </div>
 
   <h1>スマホライト一斉同期コントローラー</h1>
@@ -352,7 +383,8 @@
       } else if (data.type === 'STOP') {
         clearAllTimers();
         setLightState(false);
-        document.getElementById('timeDisplay').textContent = "00:00.00"; // 停止時に経過時間をリセット
+        document.getElementById('timeDisplay').textContent = "00:00.00";
+        document.getElementById('moveAlertOverlay').style.display = 'none'; // 停止時に「移動」表示も消す
         setLog("一斉停止命令を受信しました");
       }
     });
@@ -436,6 +468,7 @@
     function runTimelineProgram(instantStart, serverTimestamp) {
       clearAllTimers();
       setLightState(false);
+      document.getElementById('moveAlertOverlay').style.display = 'none'; // 開始時はいったん非表示
 
       const pIdx = parseInt(selectEl.value, 10);
       const startOffset = instantStart ? 153.59 : 0.0;
@@ -448,10 +481,17 @@
       setLog(`一斉同期スタート: ${patternLabels[pIdx]}\n(${instantStart ? '即時スタート: 2分34秒59〜' : '通常スタート'})`);
 
       let executedEvents = new Set();
+      let moveAlertShown = false; // 「移動」表示の重複発動防止フラグ
 
       timerId = setInterval(() => {
         const currentTime = (Date.now() / 1000) - startTime;
         document.getElementById('timeDisplay').textContent = formatTime(currentTime);
+
+        // 2分53秒500 (173.5秒) になったら「移動」のでか文字を表示
+        if (currentTime >= 173.5 && !moveAlertShown) {
+          moveAlertShown = true;
+          document.getElementById('moveAlertOverlay').style.display = 'flex';
+        }
 
         // カウントダウン表示の更新
         const remainTime = firstLightTime - currentTime;
@@ -485,7 +525,8 @@
         if (currentTime > lastEvent.t + 3.0) {
           clearAllTimers();
           setLightState(false);
-          document.getElementById('timeDisplay').textContent = "00:00.00"; // プログラム完了時に経過時間をリセット
+          document.getElementById('timeDisplay').textContent = "00:00.00";
+          document.getElementById('moveAlertOverlay').style.display = 'none'; // 完了時に「移動」表示を消す
           setLog("プログラム完了");
         }
       }, 30);
@@ -508,7 +549,8 @@
     async function testFlash() {
       await initCamera();
       clearAllTimers();
-      document.getElementById('timeDisplay').textContent = "00:00.00"; // テスト時もリセット
+      document.getElementById('timeDisplay').textContent = "00:00.00";
+      document.getElementById('moveAlertOverlay').style.display = 'none';
       setLog("テスト点滅実行中 (1秒)");
       let count = 0;
       const testInterval = setInterval(() => {
