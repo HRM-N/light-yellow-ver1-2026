@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>スマホライト一斉同期コントローラー</title>
+  
+  <!-- Firebase SDK の読み込み -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #121212;
+      color: #ffffff;
+      margin: 0;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 1.2rem;
+      margin-top: 5px;
+      margin-bottom: 12px;
+      text-align: center;
+      color: #ffca28;
+    }
+    .card {
+      background: #1e1e1e;
+      border-radius: 12px;
+      padding: 16px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      margin-bottom: 15px;
+    }
+    .mode-switch {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #555;
+      background: #333;
+      color: #aaa;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .mode-btn.active {
+      background: #0288d1;
+      color: #fff;
+      border-color: #0288d1;
+    }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+    select {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      background: #2b2b2b;
+      color: #fff;
+      font-size: 1rem;
+      margin-bottom: 15px;
+      outline: none;
+    }
+    .btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    button {
+      padding: 14px 8px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      color: #fff;
+    }
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-start { background-color: #2e7d32; grid-column: span 2; font-size: 1.1rem; }
+    .btn-test { background-color: #0288d1; }
+    .btn-instant { background-color: #ed6c02; }
+    .btn-stop { background-color: #d32f2f; grid-column: span 2; }
+    
+    .status-panel {
+      text-align: center;
+      background: #2a2a2a;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .time-display {
+      font-family: monospace;
+      font-size: 2.2rem;
+      color: #4caf50;
+      margin: 5px 0;
+    }
+    .countdown-display {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #ff9800;
+      background: #332200;
+      border: 1px solid #ff9800;
+      border-radius: 6px;
+      padding: 6px 10px;
+      margin: 8px 0;
+      display: inline-block;
+    }
+    .light-indicator {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #444;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .light-indicator.on {
+      background: #ffeb3b;
+      box-shadow: 0 0 14px #ffeb3b;
+    }
+    .log-area {
+      font-size: 0.85rem;
+      color: #aaa;
+      margin-top: 8px;
+      white-space: pre-line;
+    }
+
+    .notice-card {
+      background: #252818;
+      border: 2px solid #ffca28;
+      border-radius: 12px;
+      padding: 15px;
+      width: 100%;
+      max-width: 480px;
+      margin-bottom: 20px;
+    }
+    .notice-title { font-size: 0.95rem; font-weight: bold; color: #ffca28; margin-bottom: 8px; }
+    .notice-list { margin: 0; padding-left: 0; list-style: none; font-size: 0.88rem; line-height: 1.5; color: #f0f0f0; }
+    .notice-list li { margin-bottom: 6px; text-indent: -1em; padding-left: 1em; }
+  </style>
+</head>
+<body>
+
+  <h1>スマホライト一斉同期コントローラー</h1>
+
+  <div class="card">
+    <label>端末モード切替:</label>
+    <div class="mode-switch">
+      <button class="mode-btn active" id="modeChild" onclick="setMode('child')">子機（自動受信）</button>
+      <button class="mode-btn" id="modeParent" onclick="setMode('parent')">親機（一斉操作）</button>
+    </div>
+
+    <label for="patternSelect">自分の役割パターン (1〜13):</label>
+    <select id="patternSelect"></select>
+
+    <div class="btn-grid">
+      <button class="btn-start" id="btnStart" onclick="triggerSignal('START')" disabled>① 全員一斉スタート</button>
+      <button class="btn-test" onclick="testFlash()">② カメラ許可・テスト</button>
+      <button class="btn-instant" id="btnInstant" onclick="triggerSignal('INSTANT')" disabled>③ 全員一斉即時スタート</button>
+      <button class="btn-stop" id="btnStop" onclick="triggerSignal('STOP')" disabled>④ 全員一斉停止</button>
+    </div>
+  </div>
+
+  <div class="card status-panel">
+    <div>経過時間</div>
+    <div class="time-display" id="timeDisplay">00:00.00</div>
+    
+    <!-- 追加：カウントダウン表示エリア -->
+    <div class="countdown-display" id="countdownDisplay">光り始めまで: --:--.--</div>
+
+    <div style="margin-top: 8px;">
+      ライト状態: <span id="statusText">消灯</span>
+      <span class="light-indicator" id="lightIndicator"></span>
+    </div>
+    <div class="log-area" id="logArea">初期化中...</div>
+  </div>
+
+  <div class="notice-card">
+    <div class="notice-title">【使い方手順】</div>
+    <ul class="notice-list">
+      <li>・全員：まず「② カメラ許可・テスト」を押してカメラ使用を許可する</li>
+      <li>・全員：自分の「役割パターン（1〜13）」を選択する</li>
+      <li>・親機のみ：「親機」ボタンを押し、一斉スタートボタンを押す</li>
+    </ul>
+  </div>
+
+  <script>
+    // -------------------------------------------------------------
+    // 【重要】ご自身の Firebase 設定情報をここに貼り付けてください
+    // -------------------------------------------------------------
+   const firebaseConfig = {
+      apiKey: "AIzaSyBmBbHD-R0TkcrLPrimnnsRONkX6KAns7w",
+      authDomain: "light-ver1.firebaseapp.com",
+      databaseURL: "https://light-ver1-default-rtdb.firebaseio.com", // ※Realtime DatabaseのURL
+      projectId: "light-ver1",
+      storageBucket: "light-ver1.firebasestorage.app",
+      messagingSenderId: "647358252337",
+      appId: "1:647358252337:web:f3ceab18ab0f8fdd37dc10"
+    };
+
+    // Firebaseの初期化
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const signalRef = db.ref("sync_signal");
+
+    // Excelから抽出した正確なタイムラインデータ
+    const excelTimeline = [
+      { t: 154.59, actions: ["ON","ON","ON","ON","ON","ON","OFF","OFF","OFF","OFF","OFF","OFF","OFF"], dur: 0.25 },
+      { t: 155.19, actions: ["ON","ON","ON","ON","ON","ON","OFF","OFF","OFF","OFF","OFF","OFF","OFF"], dur: 0.25 },
+      { t: 155.74, actions: ["ON","ON","ON","ON","ON","ON","OFF","OFF","OFF","OFF","OFF","OFF","OFF"], dur: 0.25 },
+      { t: 156.34, actions: ["ON","ON","ON","ON","ON","ON","OFF","OFF","OFF","OFF","OFF","OFF","OFF"], dur: 0.25 },
+      { t: 157.05, actions: ["RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM"], endT: 160.18 },
+      { t: 160.18, actions: ["OFF","OFF","OFF","OFF","OFF","OFF","ON","ON","ON","ON","ON","ON","ON"], dur: 0.25 },
+      { t: 160.80, actions: ["OFF","OFF","OFF","OFF","OFF","OFF","ON","ON","ON","ON","ON","ON","ON"], dur: 0.25 },
+      { t: 161.37, actions: ["OFF","OFF","OFF","OFF","OFF","OFF","ON","ON","ON","ON","ON","ON","ON"], dur: 0.25 },
+      { t: 161.95, actions: ["OFF","OFF","OFF","OFF","OFF","OFF","ON","ON","ON","ON","ON","ON","ON"], dur: 0.25 },
+      { t: 162.51, actions: ["OFF","OFF","OFF","OFF","OFF","OFF","ON","ON","ON","ON","ON","ON","ON"], dur: 0.25 },
+      { t: 162.89, actions: ["OFF","OFF","OFF","OFF","OFF","OFF","ON","ON","ON","ON","ON","ON","ON"], dur: 0.25 },
+      { t: 163.22, actions: ["RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM","RANDOM"], endT: 166.35 },
+      { t: 166.35, actions: ["ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON"], dur: 0.25 },
+      { t: 166.98, actions: ["ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON"], dur: 0.25 },
+      { t: 167.47, actions: ["ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON"], dur: 0.25 },
+      { t: 168.10, actions: ["ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON"], dur: 0.25 },
+      { t: 168.63, actions: ["ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON"], dur: 0.25 },
+      { t: 169.05, actions: ["ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON"], dur: 0.25 },
+      { t: 169.38, actions: ["ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON"], dur: 0.25 },
+      { t: 169.40, actions: ["ON","OFF","OFF","OFF","OFF","OFF","ON","OFF","OFF","OFF","OFF","OFF","OFF"], dur: 0.3 },
+      { t: 169.917, actions: ["OFF","ON","OFF","OFF","OFF","OFF","OFF","ON","OFF","OFF","OFF","OFF","OFF"], dur: 0.3 },
+      { t: 170.433, actions: ["OFF","OFF","ON","OFF","OFF","OFF","OFF","OFF","ON","OFF","OFF","OFF"], dur: 0.3 },
+      { t: 170.950, actions: ["OFF","OFF","OFF","ON","OFF","OFF","OFF","OFF","OFF","ON","OFF","OFF"], dur: 0.3 },
+      { t: 171.467, actions: ["OFF","OFF","OFF","OFF","ON","OFF","OFF","OFF","OFF","OFF","ON","OFF"], dur: 0.3 },
+      { t: 171.983, actions: ["OFF","OFF","OFF","OFF","OFF","ON","OFF","OFF","OFF","OFF","OFF","ON"], dur: 0.3 },
+      { t: 172.500, actions: ["ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON","ON"], dur: 1.0 }
+    ];
+
+    // 各パターンの最初の発光秒数（カウントダウン計算用）
+    const earliestLightTimes = [
+      154.59, 154.59, 154.59, 154.59, 154.59, 154.59, // 影1~6 (2分34秒59)
+      157.05, 157.05, 157.05, 157.05, 157.05, 157.05, 157.05 // 光7~13 (2分37秒05)
+    ];
+
+    let track = null;
+    let isLightOn = false;
+    let timerId = null;
+    let startTime = 0;
+    let randomBlinkInterval = null;
+    let currentMode = 'child';
+
+    // パターン選択肢 (1~13)
+    const selectEl = document.getElementById('patternSelect');
+    const patternLabels = [
+      "影 22・9", "影 36・3", "影 12・1", "影 25・5", "影 24・4", "影 32・20",
+      "光 27・2", "光 15・18", "光 23・13", "光 30・40A", "光 28・10", "光 14・26", "光 29"
+    ];
+    patternLabels.forEach((label, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `[${i+1}] ${label}`;
+      selectEl.appendChild(opt);
+    });
+
+    // モード切り替え（親機・子機）
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById('modeChild').classList.toggle('active', mode === 'child');
+      document.getElementById('modeParent').classList.toggle('active', mode === 'parent');
+      
+      const isParent = (mode === 'parent');
+      document.getElementById('btnStart').disabled = !isParent;
+      document.getElementById('btnInstant').disabled = !isParent;
+      document.getElementById('btnStop').disabled = !isParent;
+
+      setLog(`モード変更: ${isParent ? '親機（操作可能）' : '子機（親からの信号待機中）'}`);
+    }
+
+    // 親機からの信号送信
+    function triggerSignal(type) {
+      if (currentMode !== 'parent') return;
+      signalRef.set({
+        type: type,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+      });
+    }
+
+    // Firebaseの信号受信イベント
+    signalRef.on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+
+      if (data.type === 'START') {
+        runTimelineProgram(false, data.timestamp);
+      } else if (data.type === 'INSTANT') {
+        runTimelineProgram(true, data.timestamp);
+      } else if (data.type === 'STOP') {
+        clearAllTimers();
+        setLightState(false);
+        setLog("一斉停止命令を受信しました");
+      }
+    });
+
+    async function initCamera() {
+      if (track) return true;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: "environment" } }
+        });
+        track = stream.getVideoTracks()[0];
+        setLog("カメラ・ライト接続成功");
+        return true;
+      } catch (err) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          track = stream.getVideoTracks()[0];
+          setLog("カメラ接続成功（標準）");
+          return true;
+        } catch (e) {
+          setLog("画面インジケーターのみ動作（ライトなし）");
+          return false;
+        }
+      }
+    }
+
+    async function setLightState(on) {
+      isLightOn = on;
+      const indicator = document.getElementById('lightIndicator');
+      const statusText = document.getElementById('statusText');
+      
+      if (on) {
+        indicator.classList.add('on');
+        statusText.textContent = "点灯中";
+      } else {
+        indicator.classList.remove('on');
+        statusText.textContent = "消灯";
+      }
+
+      if (track) {
+        try {
+          const capabilities = await track.getCapabilities();
+          if (capabilities.torch) {
+            await track.applyConstraints({ advanced: [{ torch: on }] });
+          }
+        } catch (e) {}
+      }
+    }
+
+    function setLog(msg) {
+      document.getElementById('logArea').textContent = msg;
+    }
+
+    function formatTime(sec) {
+      if (sec < 0) sec = 0;
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      const ms = Math.floor((sec % 1) * 100);
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms).padStart(2, '0')}`;
+    }
+
+    function clearAllTimers() {
+      if (timerId) clearInterval(timerId);
+      if (randomBlinkInterval) clearInterval(randomBlinkInterval);
+      timerId = null;
+      randomBlinkInterval = null;
+      document.getElementById('countdownDisplay').textContent = "光り始めまで: --:--.--";
+    }
+
+    // プログラム実行処理
+    function runTimelineProgram(instantStart, serverTimestamp) {
+      clearAllTimers();
+      setLightState(false);
+
+      const pIdx = parseInt(selectEl.value, 10);
+      // 即時スタート時は発光直前の2分30秒（150秒）地点からスタート
+      const startOffset = instantStart ? 150.0 : 0.0;
+      const firstLightTime = earliestLightTimes[pIdx];
+      
+      const now = Date.now();
+      const delay = Math.max(0, (now - serverTimestamp) / 1000);
+      startTime = (now / 1000) - (startOffset + delay);
+
+      setLog(`一斉同期スタート: ${patternLabels[pIdx]}\n(${instantStart ? '即時スタート: 2分30秒〜' : '通常スタート'})`);
+
+      let executedEvents = new Set();
+
+      timerId = setInterval(() => {
+        const currentTime = (Date.now() / 1000) - startTime;
+        document.getElementById('timeDisplay').textContent = formatTime(currentTime);
+
+        // カウントダウン表示の更新
+        const remainTime = firstLightTime - currentTime;
+        const cdDisplay = document.getElementById('countdownDisplay');
+        if (remainTime > 0) {
+          cdDisplay.textContent = `光り始めまで: あと ${formatTime(remainTime)}`;
+          cdDisplay.style.color = "#ff9800";
+        } else {
+          cdDisplay.textContent = "光り始め演出中！";
+          cdDisplay.style.color = "#4caf50";
+        }
+
+        excelTimeline.forEach((event, idx) => {
+          if (currentTime >= event.t && !executedEvents.has(idx)) {
+            const action = event.actions[pIdx];
+
+            if (action === "RANDOM" || action === "点滅（ランダム・遅い）") {
+              executedEvents.add(idx);
+              startRandomBlink(event.endT);
+            } 
+            else if (action === "ON") {
+              executedEvents.add(idx);
+              if (randomBlinkInterval) clearInterval(randomBlinkInterval);
+              setLightState(true);
+              setTimeout(() => { setLightState(false); }, (event.dur || 0.25) * 1000);
+            }
+          }
+        });
+
+        const lastEvent = excelTimeline[excelTimeline.length - 1];
+        if (currentTime > lastEvent.t + 3.0) {
+          clearAllTimers();
+          setLightState(false);
+          setLog("プログラム完了");
+        }
+      }, 30);
+    }
+
+    function startRandomBlink(endTime) {
+      if (randomBlinkInterval) clearInterval(randomBlinkInterval);
+      randomBlinkInterval = setInterval(() => {
+        const currentTime = (Date.now() / 1000) - startTime;
+        if (currentTime >= endTime) {
+          clearInterval(randomBlinkInterval);
+          randomBlinkInterval = null;
+          setLightState(false);
+          return;
+        }
+        setLightState(Math.random() > 0.5);
+      }, 250);
+    }
+
+    async function testFlash() {
+      await initCamera();
+      clearAllTimers();
+      setLog("テスト点滅実行中 (1秒)");
+      let count = 0;
+      const testInterval = setInterval(() => {
+        setLightState(count % 2 === 0);
+        count++;
+        if (count >= 6) {
+          clearInterval(testInterval);
+          setLightState(false);
+          setLog("テスト完了（準備OK）");
+        }
+      }, 150);
+    }
+
+    // 初期起動メッセージ
+    setTimeout(() => {
+      setLog("接続完了（子機モード待機中）");
+    }, 1000);
+  </script>
+</body>
+</html>
