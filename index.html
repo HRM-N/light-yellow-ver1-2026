@@ -385,15 +385,15 @@
       setLightState(false);
 
       const pIdx = parseInt(selectEl.value, 10);
-      // 即時スタート時は発光直前の2分30秒（150秒）地点からスタート
-      const startOffset = instantStart ? 150.0 : 0.0;
+      // 即時スタート時は最初の発光（154.59秒）の直前（153.59秒）からスタート
+const startOffset = instantStart ? 153.59 : 0.0;
       const firstLightTime = earliestLightTimes[pIdx];
       
       const now = Date.now();
       const delay = Math.max(0, (now - serverTimestamp) / 1000);
       startTime = (now / 1000) - (startOffset + delay);
 
-      setLog(`一斉同期スタート: ${patternLabels[pIdx]}\n(${instantStart ? '即時スタート: 2分30秒〜' : '通常スタート'})`);
+      setLog(`一斉同期スタート: ${patternLabels[pIdx]}\n(${instantStart ? '即時スタート: 2分34秒59〜' : '通常スタート'})`);
 
       let executedEvents = new Set();
 
