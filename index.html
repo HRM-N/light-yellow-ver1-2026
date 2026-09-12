@@ -468,10 +468,11 @@ const startOffset = instantStart ? 153.59 : 0.0;
       }, 150);
     }
 
-    // 初期起動メッセージ
-    setTimeout(() => {
-      setLog("接続完了（子機モード待機中）");
-    }, 1000);
+    // ページ読み込み完了時に自動でカメラ許可と接続を実行
+    window.addEventListener('DOMContentLoaded', async () => {
+      setLog("カメラ接続中...");
+      await initCamera();
+    });
   </script>
 </body>
 </html>
