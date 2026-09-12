@@ -352,6 +352,7 @@
       } else if (data.type === 'STOP') {
         clearAllTimers();
         setLightState(false);
+        document.getElementById('timeDisplay').textContent = "00:00.00"; // 停止時に経過時間をリセット
         setLog("一斉停止命令を受信しました");
       }
     });
@@ -484,6 +485,7 @@
         if (currentTime > lastEvent.t + 3.0) {
           clearAllTimers();
           setLightState(false);
+          document.getElementById('timeDisplay').textContent = "00:00.00"; // プログラム完了時に経過時間をリセット
           setLog("プログラム完了");
         }
       }, 30);
@@ -506,6 +508,7 @@
     async function testFlash() {
       await initCamera();
       clearAllTimers();
+      document.getElementById('timeDisplay').textContent = "00:00.00"; // テスト時もリセット
       setLog("テスト点滅実行中 (1秒)");
       let count = 0;
       const testInterval = setInterval(() => {
