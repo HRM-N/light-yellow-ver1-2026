@@ -153,9 +153,51 @@
     .notice-title { font-size: 0.95rem; font-weight: bold; color: #ffca28; margin-bottom: 8px; }
     .notice-list { margin: 0; padding-left: 0; list-style: none; font-size: 0.88rem; line-height: 1.5; color: #f0f0f0; }
     .notice-list li { margin-bottom: 6px; text-indent: -1em; padding-left: 1em; }
+
+    /* 全画面オーバーレイ案内 */
+    #startOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.92);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      text-align: center;
+    }
+    #startOverlay button {
+      background: #ffca28;
+      color: #000;
+      font-size: 1.3rem;
+      padding: 20px 30px;
+      border-radius: 12px;
+      font-weight: bold;
+      border: none;
+      box-shadow: 0 0 20px rgba(255, 202, 40, 0.6);
+      cursor: pointer;
+      margin-top: 15px;
+    }
   </style>
 </head>
 <body>
+
+  <!-- 起動許可オーバーレイ -->
+  <div id="startOverlay">
+    <div style="font-size: 1.5rem; font-weight: bold; color: #ffca28; margin-bottom: 10px;">
+      ⚠️ 初期設定が必要です
+    </div>
+    <div style="font-size: 1rem; color: #ddd; max-width: 320px; line-height: 1.6;">
+      ライト同期機能を使用するため、下のボタンを押してカメラの使用を許可してください。
+    </div>
+    <button onclick="enableCameraFromOverlay()">
+      タップしてカメラ・ライトを許可
+    </button>
+  </div>
 
   <h1>スマホライト一斉同期コントローラー</h1>
 
@@ -181,7 +223,7 @@
     <div>経過時間</div>
     <div class="time-display" id="timeDisplay">00:00.00</div>
     
-    <!-- 追加：カウントダウン表示エリア -->
+    <!-- カウントダウン表示エリア -->
     <div class="countdown-display" id="countdownDisplay">光り始めまで: --:--.--</div>
 
     <div style="margin-top: 8px;">
@@ -194,7 +236,7 @@
   <div class="notice-card">
     <div class="notice-title">【使い方手順】</div>
     <ul class="notice-list">
-      <li>・全員：まず「② カメラ許可・テスト」を押してカメラ使用を許可する</li>
+      <li>・全員：まず画面をタップしてカメラの使用を許可する</li>
       <li>・全員：自分の「役割パターン（1〜13）」を選択する</li>
       <li>・親機のみ：「親機」ボタンを押し、一斉スタートボタンを押す</li>
     </ul>
@@ -202,12 +244,12 @@
 
   <script>
     // -------------------------------------------------------------
-    // 【重要】ご自身の Firebase 設定情報をここに貼り付けてください
+    // 【重要】ご自身の Firebase 設定情報
     // -------------------------------------------------------------
-   const firebaseConfig = {
+    const firebaseConfig = {
       apiKey: "AIzaSyBmBbHD-R0TkcrLPrimnnsRONkX6KAns7w",
       authDomain: "light-ver1.firebaseapp.com",
-      databaseURL: "https://light-ver1-default-rtdb.firebaseio.com", // ※Realtime DatabaseのURL
+      databaseURL: "https://light-ver1-default-rtdb.firebaseio.com",
       projectId: "light-ver1",
       storageBucket: "light-ver1.firebasestorage.app",
       messagingSenderId: "647358252337",
@@ -336,6 +378,16 @@
       }
     }
 
+    // オーバーレイのボタンから呼ばれるカメラ許可処理
+    async function enableCameraFromOverlay() {
+      setLog("カメラ許可を確認中...");
+      const success = await initCamera();
+      document.getElementById('startOverlay').style.display = 'none';
+      if (!success) {
+        alert("カメラの許可が得られなかったか、対応していないブラウザです。画面表示のみで実行します。");
+      }
+    }
+
     async function setLightState(on) {
       isLightOn = on;
       const indicator = document.getElementById('lightIndicator');
@@ -385,8 +437,7 @@
       setLightState(false);
 
       const pIdx = parseInt(selectEl.value, 10);
-      // 即時スタート時は最初の発光（154.59秒）の直前（153.59秒）からスタート
-const startOffset = instantStart ? 153.59 : 0.0;
+      const startOffset = instantStart ? 153.59 : 0.0;
       const firstLightTime = earliestLightTimes[pIdx];
       
       const now = Date.now();
@@ -467,12 +518,6 @@ const startOffset = instantStart ? 153.59 : 0.0;
         }
       }, 150);
     }
-
-    // ページ読み込み完了時に自動でカメラ許可と接続を実行
-    window.addEventListener('DOMContentLoaded', async () => {
-      setLog("カメラ接続中...");
-      await initCamera();
-    });
   </script>
 </body>
 </html>
